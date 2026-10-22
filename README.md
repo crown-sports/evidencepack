@@ -50,6 +50,16 @@ answer. [The host integration](examples/tool_middleware.py) wraps existing tools
 
 ![Actual fault experiment and measured comparisons](docs/assets/demo.png)
 
+## When to use it
+
+Choose this component when your agent already runs tools, but long outputs and
+unverifiable quotes make answers hard to audit. A short output that fits intact
+may only need direct context and a saved file. A document search engine solves
+retrieval over a corpus; EvidencePack instead manages evidence from captured
+tool invocations and checks what was exposed in one particular pack. It does
+not replace your agent, model, authorization policy or semantic answer review.
+See [implementation evidence and priorities](docs/product.md).
+
 ## What it guarantees
 
 - **Exact capture and recovery:** one opaque identity per invocation, SHA-256
@@ -64,7 +74,7 @@ answer. [The host integration](examples/tool_middleware.py) wraps existing tools
 - **Explicit lifetimes:** live receipts pin captures; release permits collection;
   forced deletion leaves tombstones and invalidates dependent receipts.
 
-The core is eight modules with no runtime dependencies. Frozen domain values,
+The core has no runtime dependencies. Frozen domain values,
 repository/counter/ranker Protocols, a composing service, CLI and optional stdio
 MCP adapter separate policy from storage and transport. See the
 [design and completed delivery stages](docs/design.md).
@@ -80,10 +90,16 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 python -m examples.quickstart
-python -m examples.diagnose
+python -m examples.answer_gate
 ```
 
-The `diagnose` example starts two disposable loopback HTTP processes, captures an actual
+**First-run success:** `quickstart` prints a serialized pack at or below 2,000
+bytes, accepts `upstream_port=8080`, and rejects `upstream_port=9999` with
+`quote_mismatch`. `answer_gate` prints `valid: true`, then `valid: false` with
+`uncited_claim` after an uncited claim is added. These generated inputs and
+preset claims need no model, credentials or production data.
+
+For a full incident experiment, run `python -m examples.diagnose`. It starts two disposable loopback HTTP processes, captures an actual
 502 failure, and applies an observation-derived rule patch. It prints the
 measured 200 response and accepts a real quote while rejecting an invented one.
 Both child processes are cleaned up. This demo uses no LLM.
@@ -101,7 +117,6 @@ unit = pack.excerpts[0]
 assert service.verify(pack.receipt, unit.citation, "connection refused").valid
 assert not service.verify(pack.receipt, unit.citation, "database corruption").valid
 assert service.raw(capture.id).text == capture.text
-service.release(pack.receipt)
 ```
 
 Install `'.[tokens]'` for `TiktokenCounter`, `'.[eval]'` for a local
@@ -136,6 +151,7 @@ claims = [{"id": "failure", "text": "The probe refused the connection",
            "citations": [{"citation": unit.citation, "quote": "connection refused"}]}]
 verdict = service.verify_answer(pack.receipt, claims)
 assert verdict["valid"]
+service.release(pack.receipt)  # Release after the host has finished checking the answer.
 ```
 
 CLI: `evidencepack --tenant local --session incident-1 verify-answer RECEIPT answer.json`.
@@ -148,6 +164,13 @@ free-form prose is not checked. Limits are 100 claims, 20 citations per claim,
 and 1 MiB of submitted claims.
 
 Run `python -m examples.answer_gate` for an offline passing/rejected pair.
+
+For a first integration, replace one tool's output in
+[the middleware example](examples/tool_middleware.py), send the exact pack JSON
+to your model, and keep its receipt in trusted host state. Check every displayed
+claim before accepting the answer; test an uncited claim and a modified quote
+as rejection cases. Decide how your application asks for more evidence or
+reports “unsupported” before enabling actions based on that answer.
 
 ## Measured behavior
 
@@ -164,7 +187,8 @@ On one RTX 5090 with Qwen3-4B and a separate 1,000-native-token evidence allowan
 final code produces **24/24 correct patches and 23/24 grounded answers** across
 the paired and fresh instance runs. BM25 achieves the same model totals.
 The fresh run rejects one unsupported submitted quote in each arm.
-**62 tests pass on macOS and Linux**, including an actual MCP stdio client.
+The published experiment snapshot recorded **62 passing tests on macOS and
+Linux**, including an actual MCP stdio client; see CI for the current suite.
 
 All policies receive the same complete units, metadata schema and allowance.
 They are selection-policy baselines, not full OpenClaw, Hermes or OpenHands

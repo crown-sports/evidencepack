@@ -31,6 +31,16 @@ that the quoted bytes occur in an unaltered excerpt exposed in that receipt.
 Check claim interpretation and action authorization separately. The model
 benchmark additionally checks the repair values and relevant quoted fields.
 
+For a structured whole-answer gate, the host can call
+`service.verify_answer(receipt, claims)`. Every submitted claim must have an
+`id`, `text` and nonempty `citations` list containing `{citation, quote}` pairs.
+One missing or rejected citation rejects the answer and identifies the affected
+claims. The host selects the receipt, enforces the verdict, and binds all displayed
+answer text to the checked claims. Omitted prose and semantic entailment remain
+unchecked. See the runnable [answer gate](../examples/answer_gate.py) for a
+passing answer followed by an uncited claim rejection. Release the receipt only
+after completing this check.
+
 If more detail is needed, `service.read(artifact, 'L100-L110', budget=...)` or
 `service.read(artifact, 'J:/records/3', budget=...)` creates a new bounded receipt.
 An oversized reread raises `BudgetTooSmall`; request a smaller complete range or
@@ -69,7 +79,7 @@ Generic stdio host configuration:
 }
 ```
 
-The adapter exposes capture, pack, read, verify and release. No tool accepts
+The adapter exposes capture, pack, read, verify, verify-answer and release. No tool accepts
 tenant, session, vault path or a forced-deletion argument. The host binds these
 when starting the process. MCP capture is useful for pasted textual evidence;
 large tool outputs should be archived by host middleware to avoid sending their
