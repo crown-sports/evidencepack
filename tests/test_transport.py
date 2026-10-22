@@ -71,7 +71,7 @@ def test_real_mcp_stdio_roundtrip_and_host_scope(tmp_path):
             async with ClientSession(read, write) as client:
                 await client.initialize()
                 inventory = await client.list_tools()
-                assert len(inventory.tools) == 5
+                assert len(inventory.tools) == 6
                 for tool in inventory.tools:
                     assert "tenant" not in tool.inputSchema.get("properties", {})
                     assert "session" not in tool.inputSchema.get("properties", {})
@@ -101,6 +101,25 @@ def test_real_mcp_stdio_roundtrip_and_host_scope(tmp_path):
                     },
                 )
                 assert json.loads(verdict.content[0].text)["valid"]
+                answer = await client.call_tool(
+                    "evidence_verify_answer",
+                    {
+                        "receipt": pack["receipt"],
+                        "claims": [
+                            {
+                                "id": "failure",
+                                "text": "The probe failed",
+                                "citations": [
+                                    {
+                                        "citation": pack["excerpts"][0]["citation"],
+                                        "quote": "stdio failed",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                )
+                assert json.loads(answer.content[0].text)["valid"]
                 invalid = await client.call_tool(
                     "evidence_pack",
                     {

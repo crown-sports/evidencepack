@@ -9,6 +9,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
+from .answers import load_claims
 from .counters import ByteCounter, TiktokenCounter
 from .domain import Counter, EvidenceError, MediaType, Scope
 from .repository import SQLiteRepository
@@ -41,6 +42,13 @@ def parser() -> argparse.ArgumentParser:
     verify.add_argument("receipt")
     verify.add_argument("citation")
     verify.add_argument("quote")
+    answer = commands.add_parser(
+        "verify-answer", help="Gate every structured claim against one receipt"
+    )
+    answer.add_argument("receipt")
+    answer.add_argument(
+        "file", type=Path, help="JSON array of {id, text, citations:[{citation, quote}]}"
+    )
     release = commands.add_parser("release", help="Remove one receipt's retention pin")
     release.add_argument("receipt")
     delete = commands.add_parser("delete", help="Tombstone an artifact and its payload")
@@ -93,6 +101,12 @@ def main(argv: list[str] | None = None) -> int:
             verdict = service.verify(args.receipt, args.citation, args.quote)
             print(json.dumps(asdict(verdict)))
             return 0 if verdict.valid else 1
+        elif args.command == "verify-answer":
+            with args.file.open("rb") as answer_file:
+                claims = load_claims(answer_file.read(1048577))
+            checked = service.verify_answer(args.receipt, claims)
+            print(json.dumps(checked, ensure_ascii=False))
+            return 0 if checked["valid"] else 1
         elif args.command == "release":
             service.release(args.receipt)
             result = {"released": args.receipt}
