@@ -1,5 +1,7 @@
 # EvidencePack
 
+Version **0.2.0 (prerelease)** is distributed through [GitHub Releases](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0) as a wheel, source archive, and `SHA256SUMS`. Installation below pins this version; no PyPI release is required.
+
 **Recoverable tool evidence, bounded input, and quotations you can check.**
 
 [中文](README.zh-CN.md) · [Design](docs/design.md) · [Integration](docs/integration.md) ·
@@ -72,7 +74,7 @@ MCP adapter separate policy from storage and transport. See the
 Python 3.11+:
 
 ```bash
-git clone https://github.com/chrischen-coder/evidencepack.git
+git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
 python -m venv .venv
 source .venv/bin/activate
