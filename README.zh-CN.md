@@ -51,6 +51,13 @@ EvidencePack 把这个边界做成独立组件：宿主先保存原始工具输�
 
 ![真实故障实验与测量结果](docs/assets/demo.png)
 
+## 什么时候适合接入
+
+**适合已有 Agent 和工具、但长输出与引用难以审计的开发者。** 短输出能完整放入上下文时，
+直接传入并保存文件可能就够了。文档搜索系统侧重检索资料库；本组件管理每次工具调用的
+证据，并检查某个回答所引用的内容是否在指定证据包中。它不替代 Agent、模型、权限决策
+或对回答语义的审阅。[实现证据与后续优先级](docs/product.md)。
+
 ## 怎么解决
 
 1. **完整保存。** 每次工具调用独立编号，保存原始 UTF-8 内容和 SHA-256，避免同秒
@@ -67,7 +74,7 @@ EvidencePack 把这个边界做成独立组件：宿主先保存原始工具输�
 ## 工程设计与价值边界
 
 核心采用不可变领域对象、Repository/Ranker/Counter 接口、策略模式和组合服务。
-持久化、检索、计量和 CLI/MCP 传输分离，核心仅八个模块、没有运行时依赖。
+持久化、检索、计量和 CLI/MCP 传输分离，核心没有运行时依赖。
 目录、文件、方法和契约说明为本项目重新设计；没有移入来源工程的业务代码、
 数据、注释或 Git 历史。[设计文档](docs/design.md)保留分阶段开发计划和验收标准。
 
@@ -80,7 +87,7 @@ OpenClaw、Hermes、OpenHands 已有裁剪、摘要、文件恢复和上下文�
 也占预算，片段仍能恢复，作用域不能串用，采集与回执之间发生删除必须失败关闭。
 这些行为通过自动化测试验证。[对照文档](docs/related-work.md)给出了审阅源码版本。
 
-## 运行一个真实故障 Demo
+## 先验证证据和回答门禁
 
 需要 Python 3.11 或更高版本：
 
@@ -91,10 +98,15 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 python -m examples.quickstart
-python -m examples.diagnose
+python -m examples.answer_gate
 ```
 
-其中 `diagnose` 示例会启动两个临时本地 HTTP 进程，产生真实的 502 故障，采集输出，按选中的配置
+**成功判据：** `quickstart` 输出不超过 2,000 字节的证据 JSON，接受
+`upstream_port=8080`，以 `quote_mismatch` 拒绝 `upstream_port=9999`。
+`answer_gate` 先输出 `valid: true`，增加一条无引用的结论后输出 `valid: false`
+和 `uncited_claim`。输入是生成的日志与预设结论，不需要模型、凭证或生产数据。
+
+需要体验完整故障流程时，再运行 `python -m examples.diagnose`。它启动两个临时本地 HTTP 进程，产生真实的 502 故障，采集输出，按选中的配置
 和运行状态推导最小补丁，再请求服务验证是否变成 200。它同时展示真实引文通过、
 伪造引文被拒绝，结束时清理子进程。这部分使用透明的规则修复器；5090 上的模型
 评测另行记录。
@@ -111,12 +123,34 @@ print(pack.to_json())
 excerpt = pack.excerpts[0]
 assert service.verify(pack.receipt, excerpt.citation, "connection refused").valid
 assert not service.verify(pack.receipt, excerpt.citation, "database corruption").valid
-service.release(pack.receipt)
 ```
 
 `pip install '.[tokens,mcp]'` 增加 token 计量和 MCP；`'.[eval]'` 支持本地模型的
 tokenizer。宿主的系统提示、问题、聊天模板和协议外壳需要额外预留空间。
 [接入说明](docs/integration.md)包含工具中间件、CLI、MCP、重新读取和回收流程。
+
+## 在宿主中检查完整的结构化回答
+
+继续上面的示例：
+
+```python
+claims = [{"id": "failure", "text": "The probe refused the connection",
+           "citations": [{"citation": excerpt.citation, "quote": "connection refused"}]}]
+verdict = service.verify_answer(pack.receipt, claims)
+assert verdict["valid"]
+service.release(pack.receipt)  # 宿主完成回答核验后，再释放回执。
+```
+
+每条结论必须含 `id`、`text`、`citations`；每个引用含 `citation`、`quote`。
+缺少引用或任一引文不匹配，会拒绝整个回答并返回对应结论和原因。
+CLI 为 `evidencepack --tenant local --session incident-1 verify-answer RECEIPT answer.json`，
+文件内容是上面的 JSON 数组。退出 0 代表所有提交引文通过，1 代表拒绝，2 代表无效输入
+或运行错误；MCP 对应 `evidence_verify_answer`。最多 100 条结论、每条 20 个引用、总计 1 MiB。
+
+第一次接入，先在[中间件示例](examples/tool_middleware.py)中替换一个工具结果，
+将原样的证据 JSON 交给模型，回执由可信宿主保存。宿主须把完整展示的回答绑定到结论列表，
+执行门禁，并用“缺少引用”和“改写引文”验证拒绝路径。引文匹配不证明语义成立，未提交的
+自由文字不会被检查；应先定义补证据或返回“依据不足”的行为，再让回答影响后续动作。
 
 ## 实测结果
 
@@ -131,7 +165,8 @@ tokenizer。宿主的系统提示、问题、聊天模板和协议外壳需要�
 Linux 上选择与回执提交的中位耗时为 13.307 毫秒。5090 使用 Qwen3-4B 和独立的
 1,000 原生 token 证据预算；最终代码在复测与新采集两批案例中取得 **24/24 正确补丁、
 23/24 补丁与引用均通过**。BM25 的模型总成绩相同。新采集的一批中，两者各有一次
-不匹配的模型引文被拒绝。**62 项测试在 macOS 和 Linux 均通过**，包含实际 MCP 通信。
+不匹配的模型引文被拒绝。公开实验快照记录了 **62 项测试在 macOS 和 Linux 均通过**，
+包含实际 MCP 通信；当前测试集以 CI 为准。
 
 所有策略使用相同片段结构、元数据和预算。这里只比较选择策略，不能据此声称优于
 完整的 OpenClaw、Hermes 或 OpenHands Agent。合成压力测试、真实进程的规则修复、
