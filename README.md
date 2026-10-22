@@ -1,5 +1,7 @@
 # EvidencePack
 
+Version **0.2.0 (prerelease)** is distributed through [GitHub Releases](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0) as a wheel, source archive, and `SHA256SUMS`. Installation below pins this version; no PyPI release is required.
+
 **Recoverable tool evidence, bounded input, and quotations you can check.**
 
 [中文](README.zh-CN.md) · [Design](docs/design.md) · [Integration](docs/integration.md) ·
@@ -72,7 +74,7 @@ MCP adapter separate policy from storage and transport. See the
 Python 3.11+:
 
 ```bash
-git clone https://github.com/chrischen-coder/evidencepack.git
+git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
 python -m venv .venv
 source .venv/bin/activate
@@ -120,6 +122,32 @@ Use [trusted-host middleware](examples/tool_middleware.py) for large outputs;
 sending the full output through a model just to call MCP capture defeats the
 purpose. The [integration guide](docs/integration.md) covers rereads, receipts,
 deletion and a generic MCP configuration.
+
+## Gate a complete structured answer
+
+Use `service.verify_answer(receipt, claims)` in the **trusted host** before
+accepting a model answer. Each claim has an `id`, `text`, and a `citations` list
+of `{citation, quote}` objects. Every claim must cite evidence and every submitted
+quote must match the same host-selected receipt. One missing or rejected citation
+rejects the answer; the result lists each affected claim and reason.
+
+```python
+claims = [{"id": "failure", "text": "The probe refused the connection",
+           "citations": [{"citation": unit.citation, "quote": "connection refused"}]}]
+verdict = service.verify_answer(pack.receipt, claims)
+assert verdict["valid"]
+```
+
+CLI: `evidencepack --tenant local --session incident-1 verify-answer RECEIPT answer.json`.
+`answer.json` is the JSON array above. Exit 0 means all submitted quotes passed,
+1 means a rejected claim, and 2 means invalid input or an operational failure.
+The MCP adapter also exposes `evidence_verify_answer`. The host must enforce the
+verdict, bind the entire accepted answer to these claims, and still review
+reasoning: matching quotes do not establish semantic entailment, and omitted
+free-form prose is not checked. Limits are 100 claims, 20 citations per claim,
+and 1 MiB of submitted claims.
+
+Run `python -m examples.answer_gate` for an offline passing/rejected pair.
 
 ## Measured behavior
 

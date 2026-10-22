@@ -1,3 +1,4 @@
+include CHANGELOG.md
 include README.md README.zh-CN.md CONTRIBUTING.md LICENSE .gitignore .gitattributes
 recursive-include src *.py py.typed
 recursive-include tests *.py

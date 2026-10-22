@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from .service import EvidenceService
 
@@ -48,6 +48,11 @@ def create_server(service: EvidenceService, *, max_budget: int = 8192) -> FastMC
         """Validate an exact exposed quote; this does not prove that a diagnostic claim is true."""
         verdict = service.verify(receipt, citation, quote)
         return {"valid": verdict.valid, "reason": verdict.reason}
+
+    @server.tool()
+    def evidence_verify_answer(receipt: str, claims: list[dict[str, Any]]) -> dict[str, Any]:
+        """Check every submitted claim's quotes; the trusted host must enforce the verdict."""
+        return service.verify_answer(receipt, claims)
 
     @server.tool()
     def evidence_release(receipt: str) -> dict[str, str]:

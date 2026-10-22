@@ -38,3 +38,5 @@ __all__ = [
     "TiktokenCounter",
     "Verdict",
 ]
+
+__version__ = "0.2.0"

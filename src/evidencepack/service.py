@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 from uuid import uuid4
 
+from .answers import validate_claims
 from .counters import ByteCounter
 from .domain import (
     Artifact,
@@ -70,6 +72,42 @@ class EvidenceService:
     def verify(self, receipt: str, citation: str, quote: str) -> Verdict:
         """Check exact exposure provenance, leaving claim interpretation to the caller."""
         return self.repository.verify(self.scope, receipt, citation, quote)
+
+    def verify_answer(self, receipt: str, claims: list[dict[str, Any]]) -> dict[str, Any]:
+        """Gate all submitted claims against one host-selected receipt; not semantic truth."""
+        if not isinstance(receipt, str) or not receipt.strip() or len(receipt) > 256:
+            raise ValueError("receipt must be nonblank text of at most 256 characters")
+        validated = validate_claims(claims)
+        results = []
+        for claim in validated:
+            citations = []
+            for item in claim["citations"]:
+                verdict = self.verify(receipt, item["citation"], item["quote"])
+                citations.append(
+                    {"citation": item["citation"], "valid": verdict.valid, "reason": verdict.reason}
+                )
+            valid = bool(citations) and all(item["valid"] for item in citations)
+            results.append(
+                {
+                    "id": claim["id"],
+                    "valid": valid,
+                    "reason": "verified_quotes"
+                    if valid
+                    else "uncited_claim"
+                    if not citations
+                    else "rejected_quote",
+                    "citations": citations,
+                }
+            )
+        return {
+            "valid": all(item["valid"] for item in results),
+            "receipt": receipt,
+            "claims": results,
+            "rejected_claims": sum(not item["valid"] for item in results),
+            "limits": "Checks submitted quote provenance only, not semantic entailment "
+            "or omitted prose. "
+            "The host must bind this claim list to the entire answer it accepts.",
+        }
 
     def release(self, receipt: str) -> None:
         """End the retention pin once the host no longer needs this receipt."""

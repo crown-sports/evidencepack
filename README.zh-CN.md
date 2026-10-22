@@ -1,5 +1,7 @@
 # EvidencePack
 
+当前版本 **0.2.0（预发布）**，通过 [GitHub Releases](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0) 提供 wheel、源码归档和 `SHA256SUMS`；不依赖 PyPI 发布。安装说明固定到此版本。
+
 **让 Agent 在有限输入预算内拿到完整证据，并核验它引用的内容。**
 
 [English](README.md) · [设计与开发计划](docs/design.md) ·
@@ -83,7 +85,7 @@ OpenClaw、Hermes、OpenHands 已有裁剪、摘要、文件恢复和上下文�
 需要 Python 3.11 或更高版本：
 
 ```bash
-git clone https://github.com/chrischen-coder/evidencepack.git
+git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
 python -m venv .venv
 source .venv/bin/activate
