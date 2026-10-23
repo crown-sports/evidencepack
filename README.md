@@ -2,7 +2,7 @@
 
 Keep the useful lines from long tool outputs, then check whether an answer quoted them correctly.
 
-[中文](README.zh-CN.md) · [Integration](docs/integration.md) · [v0.2.0 prerelease](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0)
+[中文](README.zh-CN.md) · [Integration](docs/integration.md) · [v0.2.1 prerelease](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.1)
 
 ![Actual quickstart output: selected configuration and runtime evidence, with an accepted quote and a rejected changed port](docs/assets/pack-verify.png)
 
@@ -18,7 +18,7 @@ pack sent to the model. It is a Python library for an agent you already have.
 Python 3.11+:
 
 ```sh
-git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
+git clone --branch v0.2.1 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
 python3 -m venv .venv
 source .venv/bin/activate
@@ -68,4 +68,4 @@ In the published local fault experiment, packs averaged **1,847 bytes** from
 **99,689 bytes** of input. BM25 and EvidencePack had the same aggregate model
 results. [Inputs, comparisons, failures and reproduction commands](docs/results.md).
 
-[Design](docs/design.md) · [Related work](docs/related-work.md) · [Contributing](CONTRIBUTING.md) · MIT license
+[Debug a first pack](docs/troubleshooting.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [Contributing](CONTRIBUTING.md) · MIT license

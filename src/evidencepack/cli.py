@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -122,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         print(json.dumps(result, ensure_ascii=False))
         return 0
-    except (EvidenceError, ValueError, TypeError, OSError, ImportError) as error:
+    except (EvidenceError, ValueError, TypeError, OSError, ImportError, sqlite3.Error) as error:
         print(json.dumps({"error": type(error).__name__, "message": str(error)}), file=sys.stderr)
         return 2
 
