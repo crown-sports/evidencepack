@@ -62,4 +62,4 @@ Agent 无法直接改写的位置。
 公开的本地故障实验中，平均 **99,689 字节**输入选成 **1,847 字节**证据包。
 BM25 与 EvidencePack 的模型总成绩相同。[输入、对照、失败情况与复现命令](docs/results.md)。
 
-[设计](docs/design.md) · [相关工作](docs/related-work.md) · [参与开发](CONTRIBUTING.md) · MIT 许可证
+[调试第一个证据包](docs/troubleshooting.md) · [设计](docs/design.md) · [相关工作](docs/related-work.md) · [参与开发](CONTRIBUTING.md) · MIT 许可证

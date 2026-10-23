@@ -68,4 +68,4 @@ In the published local fault experiment, packs averaged **1,847 bytes** from
 **99,689 bytes** of input. BM25 and EvidencePack had the same aggregate model
 results. [Inputs, comparisons, failures and reproduction commands](docs/results.md).
 
-[Design](docs/design.md) · [Related work](docs/related-work.md) · [Contributing](CONTRIBUTING.md) · MIT license
+[Debug a first pack](docs/troubleshooting.md) · [Design](docs/design.md) · [Related work](docs/related-work.md) · [Contributing](CONTRIBUTING.md) · MIT license

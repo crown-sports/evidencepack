@@ -1,5 +1,8 @@
 # Integration and lifecycle
 
+For empty packs, budget errors and rejected receipts, start with
+[the runnable first-pack debugging example](troubleshooting.md).
+
 ## Trusted host middleware
 
 Create `EvidenceService` once for an authenticated tenant/session resolved by your

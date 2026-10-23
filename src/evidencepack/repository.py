@@ -63,6 +63,10 @@ class SQLiteRepository:
         self.path = Path(path)
         if str(path) == ":memory:":
             raise ValueError("Use a filesystem vault; operations have independent connections")
+        if self.path.is_dir():
+            raise ValueError(
+                "Vault must be a database file, not a directory; try vault/evidence.sqlite"
+            )
         if max_capture_bytes < 1:
             raise ValueError("max_capture_bytes must be positive")
         self.max_capture_bytes = max_capture_bytes

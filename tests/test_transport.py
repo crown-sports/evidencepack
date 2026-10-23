@@ -140,3 +140,42 @@ def test_real_mcp_stdio_roundtrip_and_host_scope(tmp_path):
                 assert json.loads(reread.content[0].text)["excerpts"][0]["text"].endswith("\n")
 
     anyio.run(scenario)
+
+
+@pytest.mark.parametrize("directory", [True, False])
+def test_cli_invalid_vault_is_recoverable_without_replacing_it(tmp_path, directory):
+    vault = tmp_path / "vault"
+    if directory:
+        vault.mkdir()
+    else:
+        vault.write_bytes(b"this is not a SQLite database")
+    failed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "evidencepack.cli",
+            "--vault",
+            str(vault),
+            "--tenant",
+            "local",
+            "--session",
+            "first",
+            "capture",
+            "-",
+            "--source",
+            "probe",
+        ],
+        input="ERROR connection refused\n",
+        text=True,
+        capture_output=True,
+    )
+    assert failed.returncode == 2
+    assert failed.stdout == ""
+    assert "Traceback" not in failed.stderr
+    error = json.loads(failed.stderr)
+    assert error["error"] == ("ValueError" if directory else "DatabaseError")
+    if directory:
+        assert "database file, not a directory" in error["message"]
+        assert not list(vault.iterdir())
+    else:
+        assert vault.read_bytes() == b"this is not a SQLite database"
