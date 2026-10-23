@@ -60,6 +60,6 @@ invalidate it. Check before releasing/collecting evidence needed by an answer.
 
 `--vault` names a database **file**, such as `.evidencepack/vault.sqlite`, not a
 directory. A non-SQLite file is not a valid vault. Preserve it and choose the
-correct database or a new filename. On main, directory and SQLite failures return
+correct database or a new filename. Since v0.2.1, directory and SQLite failures return
 structured errors with exit `2`; v0.2.0 may show a Python traceback for these failures.
 Quote rejection exits `1`, while valid verification exits `0`.

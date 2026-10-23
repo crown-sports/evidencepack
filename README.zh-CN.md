@@ -2,7 +2,7 @@
 
 从很长的工具输出里挑出有用原文，再检查回答有没有引用对。
 
-[English](README.md) · [接入说明](docs/integration.md) · [v0.2.0 预发布](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0)
+[English](README.md) · [接入说明](docs/integration.md) · [v0.2.1 预发布](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.1)
 
 ![实际 quickstart 结果：配置与运行状态原文被选入证据包，正确引文通过，改写端口后被拒绝](docs/assets/pack-verify.png)
 
@@ -17,7 +17,7 @@ EvidencePack 保存完整输出，按预算选择完整片段，再核对引文�
 需要 Python 3.11 以上：
 
 ```sh
-git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
+git clone --branch v0.2.1 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
 python3 -m venv .venv
 source .venv/bin/activate
