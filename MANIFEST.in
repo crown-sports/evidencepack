@@ -7,3 +7,4 @@ recursive-include examples *.py
 recursive-include docs *.md *.json *.jsonl *.txt *.png *.patch
 recursive-include .github *.yml
 global-exclude __pycache__ *.py[cod] .DS_Store ._*
+include docs/render_example.py docs/example-template.html docs/assets/readme-demo.html

@@ -1,187 +1,65 @@
 # EvidencePack
 
-当前版本 **0.2.0（预发布）**，通过 [GitHub Releases](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0) 提供 wheel、源码归档和 `SHA256SUMS`；不依赖 PyPI 发布。安装说明固定到此版本。
+从很长的工具输出里挑出有用原文，再检查回答有没有引用对。
 
-**让 Agent 在有限输入预算内拿到完整证据，并核验它引用的内容。**
+[English](README.md) · [接入说明](docs/integration.md) · [v0.2.0 预发布](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0)
 
-[English](README.md) · [设计与开发计划](docs/design.md) ·
-[接入说明](docs/integration.md) · [实测与复现](docs/results.md) ·
-[已有工作的对照](docs/related-work.md)
+![实际 quickstart 结果：配置与运行状态原文被选入证据包，正确引文通过，改写端口后被拒绝](docs/assets/pack-verify.png)
 
-## 谁来用？输入、输出是什么？
+*生成的日志，真实的 `pack()` 和 `verify()` 输出；没有调用模型。[本次输出](docs/assets/readme-demo.json)。*
 
-这是给 **Agent 应用开发者** 接入的 Python 库，接在工具执行与模型输入之间。
-证据处理本身在 CPU 上运行，不需要显卡；诊断由开发者已有的大模型完成。
+工具返回几千行日志，真正的错误藏在中间，模型回答时又把端口抄错了。
+EvidencePack 保存完整输出，按预算选择完整片段，再核对引文是否来自这次交给模型的
+证据包。它是接到现有 Agent 里的 Python 库。
 
-```text
-工具返回的日志、配置或 JSON + 当前问题 + 输入预算
-                     ↓ EvidencePack
-证据 JSON：选中的完整片段、来源、行号/记录位置、引用编号、证据包编号
-                     ↓ 你已有的大模型
-诊断结论 + 引用编号 + 逐字引文
-                     ↓ EvidencePack 核验
-引文通过 / 引文不匹配；应用再决定是否接受回答
-```
+## 不接模型，先跑一下
 
-| 调用 | 开发者提供的输入 | 库返回的输出 |
-| --- | --- | --- |
-| `capture(source, text)` | 来源名称和原始文本；JSON 文本可加 `media_type="json"` | 保存结果及其 ID |
-| `pack(question, ids, budget=2000)` | 要解决的问题、已保存结果的 ID、预算 | 证据包；`pack.to_json()` 可送给模型 |
-| `verify(pack.receipt, citation, quote)` | 证据包编号、片段的引用编号、模型给出的引文 | `valid` 是否匹配，以及 `reason` 原因 |
+需要 Python 3.11 以上：
 
-“回执”就是用于后续核验的证据包编号。库返回的是证据，最终诊断由你的模型生成。
-核验通过表示引文对得上，不表示模型的整段推理一定正确。
-
-安装后执行 `python -m examples.quickstart`，可以看到实际输入和两种输出。
-这个最小示例使用生成的日志和预设引文，明确不调用模型，也不产生真实诊断。
-开发者接入时，将示例字符串替换为自己的工具结果，把证据 JSON 交给已有模型，
-要求它附引用编号和逐字引文，再调用 `verify()` 检查。
-[工具中间件示例](examples/tool_middleware.py)展示了如何包装已有工具调用。
-
-## 背景与问题
-
-运维 Agent 为了一次诊断，可能读取大量日志、配置和命令输出。真正决定结论的内容
-往往只有几行：一次失败请求、实际配置、后端监听状态。只保留开头会漏掉中间的
-故障；让模型摘要可能改写端口、请求 ID 或错误码；把原文存成文件，也无法单独证明
-回答中的引文来自本次给模型的证据包。
-
-EvidencePack 把这个边界做成独立组件：宿主先保存原始工具输出，再按任务选择完整
-片段，在计算过元数据开销的预算内返回证据包，最后按包的回执核验模型引文。
-它适合日志诊断、命令输出分析和 JSON 工具结果处理。
-
-![真实故障实验与测量结果](docs/assets/demo.png)
-
-## 什么时候适合接入
-
-**适合已有 Agent 和工具、但长输出与引用难以审计的开发者。** 短输出能完整放入上下文时，
-直接传入并保存文件可能就够了。文档搜索系统侧重检索资料库；本组件管理每次工具调用的
-证据，并检查某个回答所引用的内容是否在指定证据包中。它不替代 Agent、模型、权限决策
-或对回答语义的审阅。[实现证据与后续优先级](docs/product.md)。
-
-## 怎么解决
-
-1. **完整保存。** 每次工具调用独立编号，保存原始 UTF-8 内容和 SHA-256，避免同秒
-   文件名覆盖。恢复原文时检查作用域、删除状态和摘要。
-2. **完整选择。** 文本按完整行窗口、JSON 按完整记录和指针组织。BM25 检索先兼顾
-   各次采集，再按相关度与体积填充预算，优先呈现最相关片段；重复噪声不反复占位。
-3. **准确计量。** 预算覆盖最终 JSON、引用 ID 和元数据。默认单位是字节；接入模型
-   时可以使用其真实 tokenizer。超大记录明确省略，必要时按更小范围重新读取。
-4. **按回执核验。** 引文必须逐字出现在这个回执选中的片段里。原文其他位置有同样的
-   内容，并不足以通过；核验结果也不代表引文能证明整段推理。
-5. **管理生命周期。** 活跃回执保护对应原文；宿主释放后才能回收。强制删除保留
-   墓碑并使相关回执失效，避免引用悄悄失去依据。
-
-## 工程设计与价值边界
-
-核心采用不可变领域对象、Repository/Ranker/Counter 接口、策略模式和组合服务。
-持久化、检索、计量和 CLI/MCP 传输分离，核心没有运行时依赖。
-目录、文件、方法和契约说明为本项目重新设计；没有移入来源工程的业务代码、
-数据、注释或 Git 历史。[设计文档](docs/design.md)保留分阶段开发计划和验收标准。
-
-OpenClaw、Hermes、OpenHands 已有裁剪、摘要、文件恢复和上下文扩展能力，ClawVM
-也讨论了可恢复上下文和保真约束。本项目不把这些已有能力包装成发明，也不声称
-其他项目所有代码中都不存在相似机制。
-
-具体贡献是把“完整片段、整包预算、调用来源、回执限定的引文核验、引用关联的回收”
-连接成小型、可接入不同 Agent 框架的工程契约。难点是让这些约束同时成立：元数据
-也占预算，片段仍能恢复，作用域不能串用，采集与回执之间发生删除必须失败关闭。
-这些行为通过自动化测试验证。[对照文档](docs/related-work.md)给出了审阅源码版本。
-
-## 先验证证据和回答门禁
-
-需要 Python 3.11 或更高版本：
-
-```bash
+```sh
 git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 python -m examples.quickstart
 python -m examples.answer_gate
 ```
 
-**成功判据：** `quickstart` 输出不超过 2,000 字节的证据 JSON，接受
-`upstream_port=8080`，以 `quote_mismatch` 拒绝 `upstream_port=9999`。
-`answer_gate` 先输出 `valid: true`，增加一条无引用的结论后输出 `valid: false`
-和 `uncited_claim`。输入是生成的日志与预设结论，不需要模型、凭证或生产数据。
+第一个例子把 **55,945 字节**的生成日志选成 **2,000 字节预算以内**的证据包。
+`upstream_port=8080` 通过，改成 `9999` 就返回 `quote_mismatch`。
+第二个例子先接受回答，再拒绝新增了无引用结论的回答。
+`python -m examples.diagnose` 还会用规则修复器，把一个真实本地 HTTP 故障从 **502 修到 200**。
 
-需要体验完整故障流程时，再运行 `python -m examples.diagnose`。它启动两个临时本地 HTTP 进程，产生真实的 502 故障，采集输出，按选中的配置
-和运行状态推导最小补丁，再请求服务验证是否变成 200。它同时展示真实引文通过、
-伪造引文被拒绝，结束时清理子进程。这部分使用透明的规则修复器；5090 上的模型
-评测另行记录。
+## 接到一个工具外面
 
 ```python
 from evidencepack import EvidenceService, Scope, SQLiteRepository
 
-service = EvidenceService(
-    SQLiteRepository(".evidencepack/vault.sqlite"), Scope("local", "incident-1")
-)
-artifact = service.capture("healthcheck", "INFO ready\nERROR connection refused\n")
-pack = service.pack("connection refused", [artifact.id], budget=2048)
-print(pack.to_json())
+service = EvidenceService(SQLiteRepository("vault.sqlite"), Scope("local", "case-1"))
+artifact = service.capture("probe", "ERROR connection refused\n")
+pack = service.pack("Why did the probe fail?", [artifact.id], budget=2048)
+print(pack.to_json())  # 把这份内容交给模型。
 excerpt = pack.excerpts[0]
-assert service.verify(pack.receipt, excerpt.citation, "connection refused").valid
-assert not service.verify(pack.receipt, excerpt.citation, "database corruption").valid
+verdict = service.verify(pack.receipt, excerpt.citation, "connection refused")
+assert verdict.valid
+service.release(pack.receipt)
 ```
 
-`pip install '.[tokens,mcp]'` 增加 token 计量和 MCP；`'.[eval]'` 支持本地模型的
-tokenizer。宿主的系统提示、问题、聊天模板和协议外壳需要额外预留空间。
-[接入说明](docs/integration.md)包含工具中间件、CLI、MCP、重新读取和回收流程。
+把字符串换成工具的真实输出。回执留在宿主中，让模型返回引用编号和逐字引文。
+用 `service.verify_answer(receipt, claims)` 可以检查整个结构化回答：缺少引用或任一引文
+不匹配，就拒绝回答。[结论格式和中间件示例](docs/integration.md)。
 
-## 在宿主中检查完整的结构化回答
+CLI 和可选 MCP 适配器使用同一套检查。预算包含序列化后的证据和元数据，默认按 UTF-8
+字节计量，也可接模型实际使用的 tokenizer。[计量、重读和回收](docs/product.md)。
 
-继续上面的示例：
+## 通过检查说明什么
 
-```python
-claims = [{"id": "failure", "text": "The probe refused the connection",
-           "citations": [{"citation": excerpt.citation, "quote": "connection refused"}]}]
-verdict = service.verify_answer(pack.receipt, claims)
-assert verdict["valid"]
-service.release(pack.receipt)  # 宿主完成回答核验后，再释放回执。
-```
+只说明引文确实出现在本次证据包的未改动原文中，**不证明推理正确**。
+宿主要把完整回答交给门禁，并执行拒绝决定。作用域标签不是身份认证，证据库应放在
+Agent 无法直接改写的位置。
 
-每条结论必须含 `id`、`text`、`citations`；每个引用含 `citation`、`quote`。
-缺少引用或任一引文不匹配，会拒绝整个回答并返回对应结论和原因。
-CLI 为 `evidencepack --tenant local --session incident-1 verify-answer RECEIPT answer.json`，
-文件内容是上面的 JSON 数组。退出 0 代表所有提交引文通过，1 代表拒绝，2 代表无效输入
-或运行错误；MCP 对应 `evidence_verify_answer`。最多 100 条结论、每条 20 个引用、总计 1 MiB。
+公开的本地故障实验中，平均 **99,689 字节**输入选成 **1,847 字节**证据包。
+BM25 与 EvidencePack 的模型总成绩相同。[输入、对照、失败情况与复现命令](docs/results.md)。
 
-第一次接入，先在[中间件示例](examples/tool_middleware.py)中替换一个工具结果，
-将原样的证据 JSON 交给模型，回执由可信宿主保存。宿主须把完整展示的回答绑定到结论列表，
-执行门禁，并用“缺少引用”和“改写引文”验证拒绝路径。引文匹配不证明语义成立，未提交的
-自由文字不会被检查；应先定义补证据或返回“依据不足”的行为，再让回答影响后续动作。
-
-## 实测结果
-
-| 策略 | 压力测试完整证据 | 真实故障完整证据链 | 规则修复通过 | 新采集案例的模型补丁与引用均通过 |
-| --- | ---: | ---: | ---: | ---: |
-| Prefix | 0/65 | 0/12 | 0/12 | 0/12 |
-| Head / tail | 20/65 | 0/12 | 0/12 | 0/12 |
-| BM25 | 60/65 | 8/12 | 12/12 | 11/12 |
-| EvidencePack | 60/65 | 12/12 | 12/12 | 11/12 |
-
-在 2,000 字节预算内，真实故障的平均输入从 **99,689 降至 1,847 字节，减少 98.15%**。
-Linux 上选择与回执提交的中位耗时为 13.307 毫秒。5090 使用 Qwen3-4B 和独立的
-1,000 原生 token 证据预算；最终代码在复测与新采集两批案例中取得 **24/24 正确补丁、
-23/24 补丁与引用均通过**。BM25 的模型总成绩相同。新采集的一批中，两者各有一次
-不匹配的模型引文被拒绝。公开实验快照记录了 **62 项测试在 macOS 和 Linux 均通过**，
-包含实际 MCP 通信；当前测试集以 CI 为准。
-
-所有策略使用相同片段结构、元数据和预算。这里只比较选择策略，不能据此声称优于
-完整的 OpenClaw、Hermes 或 OpenHands Agent。合成压力测试、真实进程的规则修复、
-模型回答质量分别统计；失败也计入分母。第一次呈现顺序不佳的模型结果一起保留，
-没有隐藏。[测量文档](docs/results.md)提供原始输入、回答、代码指纹和复现命令。
-
-## 使用限制
-
-回执记录的是返回给宿主的证据包，宿主须确实把该包交给模型，并关联到待核验的
-回答；它不能证明网络交付或模型注意力。逐字引文核验不验证整个诊断的语义，也不
-授权执行修复。工具内容仍应视为不可信数据。
-
-作用域标签不是身份认证，摘要不是防数据库所有者篡改的签名；应把库保存在 Agent
-无法直接改写的位置。检索可能漏掉同义表达，超大记录可能放不进预算，活跃回执需
-及时释放。首版只支持本地文本证据；没有分布式存储、多模态或百万记录索引。
-SQLite 逻辑删除不是安全擦除。
-
-MIT 许可证。[贡献与检查流程](CONTRIBUTING.md)。
+[设计](docs/design.md) · [相关工作](docs/related-work.md) · [参与开发](CONTRIBUTING.md) · MIT 许可证

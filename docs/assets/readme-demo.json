@@ -1,0 +1,60 @@
+{
+  "input_bytes": 55945,
+  "budget_bytes": 2000,
+  "serialized_bytes": 1177,
+  "pack": {
+    "v": 1,
+    "receipt": "p_d329b7aa5d2445eeb8c3fe22772a95d7",
+    "counter": "utf8-bytes",
+    "excerpts": [
+      {
+        "citation": "e_92d7077b2d86b70a57d80dac",
+        "artifact": "a_7f709f2896764dd199875f8be818d0e9",
+        "source": "backend-runtime",
+        "locator": "L1-L1",
+        "text": "LISTENER bound_port=8081 health_path=/health\n"
+      },
+      {
+        "citation": "e_c241958d964e9068dcb86259",
+        "artifact": "a_13bb9719dfe54919a3a801abcf4a6e9d",
+        "source": "configuration",
+        "locator": "L1-L1",
+        "text": "CONFIG upstream_port=8080 health_path=/health\n"
+      },
+      {
+        "citation": "e_cd9df8313c74db73e184e9d2",
+        "artifact": "a_8e30942297bb48d2abdb7f27e840b067",
+        "source": "application-log",
+        "locator": "L901-L903",
+        "text": "ERROR checkout upstream connection refused status=502\nINFO checkout /ping status=200\nINFO checkout /ping status=200\n"
+      },
+      {
+        "citation": "e_292cf37ca0021b429ecdf8c9",
+        "artifact": "a_8e30942297bb48d2abdb7f27e840b067",
+        "source": "application-log",
+        "locator": "L1801-L1801",
+        "text": "INFO checkout /ping status=200\n"
+      },
+      {
+        "citation": "e_f92d917e9aa9ba8a4a3107e4",
+        "artifact": "a_8e30942297bb48d2abdb7f27e840b067",
+        "source": "application-log",
+        "locator": "L1-L3",
+        "text": "INFO checkout /ping status=200\nINFO checkout /ping status=200\nINFO checkout /ping status=200\n"
+      }
+    ],
+    "omitted": 598
+  },
+  "verdicts": [
+    {
+      "quote": "upstream_port=8080",
+      "valid": true,
+      "reason": "exact_exposed_quote"
+    },
+    {
+      "quote": "upstream_port=9999",
+      "valid": false,
+      "reason": "quote_mismatch"
+    }
+  ]
+}
