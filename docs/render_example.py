@@ -56,7 +56,9 @@ def main() -> None:
         .replace("CARDS", cards)
     )
     source_lines = "<br>".join(
-        f"{escape(name)} · {len(value.splitlines()):,} lines" for name, value in sources.items()
+        f"{escape(name)} · {len(value.splitlines()):,} "
+        f"{'line' if len(value.splitlines()) == 1 else 'lines'}"
+        for name, value in sources.items()
     )
     html = html.replace("SOURCE_LINES", source_lines).replace(
         "CONFIGURATION_TEXT", escape(configuration.text.strip())
