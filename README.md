@@ -1,222 +1,71 @@
 # EvidencePack
 
-Version **0.2.0 (prerelease)** is distributed through [GitHub Releases](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0) as a wheel, source archive, and `SHA256SUMS`. Installation below pins this version; no PyPI release is required.
+Keep the useful lines from long tool outputs, then check whether an answer quoted them correctly.
 
-**Recoverable tool evidence, bounded input, and quotations you can check.**
+[中文](README.zh-CN.md) · [Integration](docs/integration.md) · [v0.2.0 prerelease](https://github.com/crown-sports/evidencepack/releases/tag/v0.2.0)
 
-[中文](README.zh-CN.md) · [Design](docs/design.md) · [Integration](docs/integration.md) ·
-[Measurements](docs/results.md) · [Related work](docs/related-work.md)
+![Actual quickstart output: selected configuration and runtime evidence, with an accepted quote and a rejected changed port](docs/assets/pack-verify.png)
 
-Operations agents often receive long logs, configuration dumps and command
-output. A prefix can hide the only failure. A summary can alter a port or request
-ID. A saved file helps recovery, but does not establish whether a quoted passage
-belonged to the evidence pack returned for this answer.
+*Generated logs, real `pack()` and `verify()` results. No model call. [Saved output](docs/assets/readme-demo.json).*
 
-EvidencePack is a small Python library for that boundary. Archive the exact tool
-output once, select complete task-relevant excerpts within a serialized budget,
-then validate the model's quotations against the returned pack's receipt.
+A tool returns thousands of log lines. The useful error is in the middle, and a
+model later quotes the wrong port. EvidencePack stores the original output,
+selects complete excerpts within a budget, and checks quotes against the exact
+pack sent to the model. It is a Python library for an agent you already have.
 
-## Who uses it, and what goes in and out?
-
-This is a library for developers who already have an agent and tools. It runs
-between tool execution and model input. EvidencePack's core needs no GPU and
-does not call a model; your application supplies the model and diagnostic logic.
-
-```text
-Tool logs / configuration + task + budget
-                  ↓ EvidencePack
-Evidence JSON with source, line / record locator, citation ID and pack receipt
-                  ↓ your existing model
-Diagnosis with citations and exact quotes
-                  ↓ EvidencePack verification
-Quote accepted or rejected; your application decides what to do next
-```
-
-| Call | You provide | You receive |
-| --- | --- | --- |
-| `capture(source, text)` | A source label and the original text; JSON text may use `media_type="json"` | An artifact containing the stored output's ID |
-| `pack(question, ids, budget=2000)` | A task, captured IDs and an allowance | A pack; `pack.to_json()` is the payload to send to your model |
-| `verify(pack.receipt, citation, quote)` | The pack ID, quoted excerpt's ID and exact quote | A `Verdict` with `valid` and `reason` |
-
-The receipt is simply the pack's ID for later quotation checks. The output of
-`pack()` is evidence, while the diagnostic answer comes from your model. Passing
-quotation checks does not establish that the model's reasoning is correct.
-
-After the installation below, run `python -m examples.quickstart` to see both
-outputs from generated logs, without any model configuration. Replace its
-strings with your tool results. Put `pack.to_json()` into your model's input,
-request citations and exact quotes, and check those quotes before accepting the
-answer. [The host integration](examples/tool_middleware.py) wraps existing tools.
-
-![Actual fault experiment and measured comparisons](docs/assets/demo.png)
-
-## When to use it
-
-Choose this component when your agent already runs tools, but long outputs and
-unverifiable quotes make answers hard to audit. A short output that fits intact
-may only need direct context and a saved file. A document search engine solves
-retrieval over a corpus; EvidencePack instead manages evidence from captured
-tool invocations and checks what was exposed in one particular pack. It does
-not replace your agent, model, authorization policy or semantic answer review.
-See [implementation evidence and priorities](docs/product.md).
-
-## What it guarantees
-
-- **Exact capture and recovery:** one opaque identity per invocation, SHA-256
-  checks, complete line windows or JSON records with recoverable locators.
-- **Whole-pack accounting:** the allowance includes JSON, citation IDs and
-  metadata. UTF-8 bytes by default; optional real tokenizer counters.
-- **Useful selection:** BM25 relevance, duplicate suppression and an initial
-  coverage pass across captures, followed by relevance-density filling and
-  presentation. Selection makes no model call.
-- **Receipt-bound quotation checks:** an exact quotation must occur in a unit
-  selected for this receipt. Text elsewhere in the archive cannot pass.
-- **Explicit lifetimes:** live receipts pin captures; release permits collection;
-  forced deletion leaves tombstones and invalidates dependent receipts.
-
-The core has no runtime dependencies. Frozen domain values,
-repository/counter/ranker Protocols, a composing service, CLI and optional stdio
-MCP adapter separate policy from storage and transport. See the
-[design and completed delivery stages](docs/design.md).
-
-## Try it
+## Try it without a model
 
 Python 3.11+:
 
-```bash
+```sh
 git clone --branch v0.2.0 https://github.com/crown-sports/evidencepack.git
 cd evidencepack
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 python -m examples.quickstart
 python -m examples.answer_gate
 ```
 
-**First-run success:** `quickstart` prints a serialized pack at or below 2,000
-bytes, accepts `upstream_port=8080`, and rejects `upstream_port=9999` with
-`quote_mismatch`. `answer_gate` prints `valid: true`, then `valid: false` with
-`uncited_claim` after an uncited claim is added. These generated inputs and
-preset claims need no model, credentials or production data.
+The first example fits **55,945 bytes** of generated logs into a pack below the
+**2,000-byte** allowance. `upstream_port=8080` passes; changing the port to `9999`
+returns `quote_mismatch`. The second example rejects an answer when an uncited
+claim is added. `python -m examples.diagnose` also runs a local HTTP fault from
+**502 to 200** using a rule-based repairer.
 
-For a full incident experiment, run `python -m examples.diagnose`. It starts two disposable loopback HTTP processes, captures an actual
-502 failure, and applies an observation-derived rule patch. It prints the
-measured 200 response and accepts a real quote while rejecting an invented one.
-Both child processes are cleaned up. This demo uses no LLM.
+## Add it around one tool
 
 ```python
 from evidencepack import EvidenceService, Scope, SQLiteRepository
 
-service = EvidenceService(
-    SQLiteRepository(".evidencepack/vault.sqlite"), Scope("local", "incident-1")
-)
-capture = service.capture("healthcheck", "INFO ready\nERROR connection refused\n")
-pack = service.pack("connection refused", [capture.id], budget=2048)
-print(pack.to_json())
-unit = pack.excerpts[0]
-assert service.verify(pack.receipt, unit.citation, "connection refused").valid
-assert not service.verify(pack.receipt, unit.citation, "database corruption").valid
-assert service.raw(capture.id).text == capture.text
+service = EvidenceService(SQLiteRepository("vault.sqlite"), Scope("local", "case-1"))
+artifact = service.capture("probe", "ERROR connection refused\n")
+pack = service.pack("Why did the probe fail?", [artifact.id], budget=2048)
+print(pack.to_json())  # Send this payload to your model.
+excerpt = pack.excerpts[0]
+verdict = service.verify(pack.receipt, excerpt.citation, "connection refused")
+assert verdict.valid
+service.release(pack.receipt)
 ```
 
-Install `'.[tokens]'` for `TiktokenCounter`, `'.[eval]'` for a local
-`HuggingFaceCounter`, or `'.[mcp]'` for MCP. Tokenizers must match the model you
-use. Reserve the system prompt, question, chat template and transport separately
-from the evidence allowance. Oversized records are omitted, with an explicit
-omission count; reread a narrower line range or deeper JSON pointer.
+Replace the string with your tool's output. Keep the receipt in host state and
+request citation IDs and exact quotes from the model. Use
+`service.verify_answer(receipt, claims)` to reject the whole structured answer
+if a claim is uncited or any quote fails. [Claim format and host middleware](docs/integration.md).
 
-CLI and MCP bind the scope at process startup:
+The CLI and optional MCP adapter use the same checks. The budget includes the
+serialized evidence and its metadata; the default unit is UTF-8 bytes. Real
+model tokenizers are optional. [Counters, rereads and retention](docs/product.md).
 
-```bash
-evidencepack --tenant local --session incident-1 capture app.log --source service-log
-evidencepack --tenant local --session incident-1 pack ARTIFACT_ID --query 'connection refused' --budget 2000
-evidencepack --tenant local --session incident-1 serve --max-budget 8192
-```
+## What the checks mean
 
-Use [trusted-host middleware](examples/tool_middleware.py) for large outputs;
-sending the full output through a model just to call MCP capture defeats the
-purpose. The [integration guide](docs/integration.md) covers rereads, receipts,
-deletion and a generic MCP configuration.
+An accepted quote appeared in an unchanged excerpt from this pack. It does **not**
+prove that the quote supports the model's reasoning. The host must check the full
+answer and enforce rejection. Scope labels are not authentication, and the vault
+must remain outside the agent's writable workspace.
 
-## Gate a complete structured answer
+In the published local fault experiment, packs averaged **1,847 bytes** from
+**99,689 bytes** of input. BM25 and EvidencePack had the same aggregate model
+results. [Inputs, comparisons, failures and reproduction commands](docs/results.md).
 
-Use `service.verify_answer(receipt, claims)` in the **trusted host** before
-accepting a model answer. Each claim has an `id`, `text`, and a `citations` list
-of `{citation, quote}` objects. Every claim must cite evidence and every submitted
-quote must match the same host-selected receipt. One missing or rejected citation
-rejects the answer; the result lists each affected claim and reason.
-
-```python
-claims = [{"id": "failure", "text": "The probe refused the connection",
-           "citations": [{"citation": unit.citation, "quote": "connection refused"}]}]
-verdict = service.verify_answer(pack.receipt, claims)
-assert verdict["valid"]
-service.release(pack.receipt)  # Release after the host has finished checking the answer.
-```
-
-CLI: `evidencepack --tenant local --session incident-1 verify-answer RECEIPT answer.json`.
-`answer.json` is the JSON array above. Exit 0 means all submitted quotes passed,
-1 means a rejected claim, and 2 means invalid input or an operational failure.
-The MCP adapter also exposes `evidence_verify_answer`. The host must enforce the
-verdict, bind the entire accepted answer to these claims, and still review
-reasoning: matching quotes do not establish semantic entailment, and omitted
-free-form prose is not checked. Limits are 100 claims, 20 citations per claim,
-and 1 MiB of submitted claims.
-
-Run `python -m examples.answer_gate` for an offline passing/rejected pair.
-
-For a first integration, replace one tool's output in
-[the middleware example](examples/tool_middleware.py), send the exact pack JSON
-to your model, and keep its receipt in trusted host state. Check every displayed
-claim before accepting the answer; test an uncited claim and a modified quote
-as rejection cases. Decide how your application asks for more evidence or
-reports “unsupported” before enabling actions based on that answer.
-
-## Measured behavior
-
-| Policy | Stress: all evidence | Live: full chain | Live: rule repair | Fresh model: grounded answer |
-| --- | ---: | ---: | ---: | ---: |
-| Prefix | 0/65 | 0/12 | 0/12 | 0/12 |
-| Head / tail | 20/65 | 0/12 | 0/12 | 0/12 |
-| BM25 | 60/65 | 8/12 | 12/12 | 11/12 |
-| EvidencePack | 60/65 | 12/12 | 12/12 | 11/12 |
-
-The live pack shrinks mean serialized input from **99,689 to 1,847 bytes (98.15%)**,
-under a 2,000-byte allowance. EvidencePack takes 13.307 ms median on Linux.
-On one RTX 5090 with Qwen3-4B and a separate 1,000-native-token evidence allowance,
-final code produces **24/24 correct patches and 23/24 grounded answers** across
-the paired and fresh instance runs. BM25 achieves the same model totals.
-The fresh run rejects one unsupported submitted quote in each arm.
-The published experiment snapshot recorded **62 passing tests on macOS and
-Linux**, including an actual MCP stdio client; see CI for the current suite.
-
-All policies receive the same complete units, metadata schema and allowance.
-They are selection-policy baselines, not full OpenClaw, Hermes or OpenHands
-agents. Generated stress, live rule-based repair and model answer grading are
-separate experiments. Original prompts, answers, failures, source fingerprints,
-the initial unsuccessful presentation order, and reproduction commands are in
-[the measurements](docs/results.md).
-
-## Contribution and limits
-
-Existing agents already prune, summarize and recover context.
-[The source comparison](docs/related-work.md) acknowledges those capabilities
-and ClawVM's fidelity contracts. The contribution here is a compact, executable
-contract joining complete evidence, serialized budgeting, invocation provenance,
-receipt-bound quotation checks and reference-aware retention. No universal
-research novelty or superiority over complete agent systems is claimed.
-
-An accepted quote is not proof that a diagnosis is true. A receipt records the
-pack returned to the host; the host must actually deliver that exact pack and
-bind it to the checked answer. It does not attest model attention. Scope labels
-are application checks, not authentication; hashes are not signatures against
-database owners. Keep the vault outside writable agent workspaces. Tool text
-remains untrusted, and the host owns repair authorization.
-
-Lexical selection can miss synonyms, coverage is heuristic, and oversized units
-may not fit. This alpha release handles textual local evidence; it has no
-distributed vault, multimodal support or million-record index. Released receipts
-remain checkable only while their captures exist. SQLite deletion is not secure
-erasure. See [integration limits](docs/integration.md).
-
-MIT licensed. [Contributing and verification](CONTRIBUTING.md).
+[Design](docs/design.md) · [Related work](docs/related-work.md) · [Contributing](CONTRIBUTING.md) · MIT license

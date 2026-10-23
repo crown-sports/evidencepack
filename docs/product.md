@@ -1,39 +1,39 @@
-# Product fit and evidence
+# Budgeting and checking tool evidence
 
-EvidencePack serves developers who already have tool-using agents. Its narrow
-job is to preserve tool output, fit selected evidence into an explicit allowance,
-and let the trusted host reject unsupported submitted quotations. It does not
-produce a diagnosis or establish that a supported quote entails a claim.
-This target use is inferred from the workflow, not validated by user interviews.
+## What counts toward the budget
 
-## What is implemented
+The allowance covers the serialized pack, including citation IDs, locations and
+metadata. The default counter measures UTF-8 bytes. Token counters are optional;
+use the tokenizer for the model receiving the pack. Oversized units may be
+omitted, so inspect the selected excerpts before relying on a diagnosis.
+[Selection behavior and tests](../tests/test_selection.py).
 
-| Advantage over passing truncated text or saving an unlinked file | Evidence | Boundary |
-| --- | --- | --- |
-| Count the serialized evidence, including locators and metadata | [Selection tests](../tests/test_selection.py), [paired experiments](results.md) | Lexical retrieval can miss synonyms or omit large units |
-| Bind quotations to the exact pack exposed to the host | [Integrity tests](../tests/test_integrity.py), [answer tests](../tests/test_answers.py) | The host must bind the full accepted answer; semantic truth is unchecked |
-| Preserve capture references through scoped storage and collection | [Integrity tests](../tests/test_integrity.py), [integration contract](integration.md) | Scope is not authentication and SQLite deletion is not secure erasure |
+The quickstart supplies **55,945 bytes** of generated logs and configuration.
+Its actual pack is **1,177 bytes** under a 2,000-byte allowance. The screenshot
+shows the configuration excerpt and two verification results, not a separate GUI.
+[Saved API output](assets/readme-demo.json) · [Recreate the figure](screenshots.md).
 
-The measured comparisons are selection-policy experiments on generated and
-local-process fixtures. They do not show superiority to complete agent platforms;
-BM25 matches the published aggregate model results. No customer outcome or
-universal accuracy claim follows from those experiments.
+## Keep the receipt on the host
 
-## What could accumulate
+A receipt binds citations to the pack actually exposed to the model. Store it in
+trusted host state, submit the entire structured answer to `verify_answer`, and
+reject the answer when any required citation fails. Merely checking one quote
+does not check the rest of the answer. An exact quote can still support a bad
+conclusion; semantic entailment is outside this check.
+[Integration and middleware](integration.md) · [Answer tests](../tests/test_answers.py).
 
-The code and established retrieval methods are reproducible, not a demonstrated
-moat. Priorities are: (1) adapters with tested full-answer binding in real hosts,
-(2) consented failure fixtures covering retrieval misses and misleading-but-exact
-quotes, (3) evaluation across actual tool schemas and tokenizer budgets.
-Stable integration contracts and a maintained rejection corpus could become
-valuable over time. Neither broad host adoption nor that external corpus exists
-in the published evidence today.
+## Rereads and retention
 
-Start with the [offline examples](../README.md#try-it); then wrap one tool with
-[middleware](../examples/tool_middleware.py). Verify the rejection path before
-letting an answer affect actions. Keep action authorization separate.
+Capture preserves the full source. A locator can request another excerpt when
+selection misses the needed lines. Release receipts when the host no longer
+needs them, then collect eligible data under the documented retention rules.
+Scope names separate records; they do not authenticate callers. Keep the SQLite
+vault outside the agent's writable workspace. Deletion is not secure erasure.
+[Storage and integrity](design.md) · [Integrity tests](../tests/test_integrity.py).
 
-## Version availability
+The published local fault experiments compare selection methods with the same
+inputs and model. BM25 matches EvidencePack's aggregate model result; the
+implementation adds explicit budgets, receipts and verifiable quotes.
+[Full results, failures and reproduction](results.md).
 
-This document is new on main; the demonstrated APIs and examples already exist
-in v0.2.0. Existing release archives are unchanged.
+The library examples work in v0.2.0. The new figure and its renderer are on main.
